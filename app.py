@@ -15,11 +15,11 @@ twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 # --- Configuración de base de datos (igual que tu código original) ---
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'dpg-d00re5c9c44c73ckj38g-a.oregon-postgres.render.com'),
-    'user': os.getenv('DB_USER', 'reservas_0m08_user'),
-    'password': os.getenv('DB_PASS', 'gJ6CvycTBwpsWe7j166vb7nA5RqQPx9k'),
-    'dbname': os.getenv('DB_NAME', 'ferreteria_chatbot'),
-    'port': os.getenv('DB_PORT', '5432')
+    'host': os.environ['DB_HOST'],
+    'dbname': os.environ['DB_NAME'],
+    'user': os.environ['DB_USER'],
+    'password': os.environ['DB_PASS'],
+    'port': os.environ.get('DB_PORT', 5432)
 }
 
 # --- Funciones de base de datos (igual que tu código original) ---
