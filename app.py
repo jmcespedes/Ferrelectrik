@@ -310,6 +310,3 @@ def manejar_opcion_menu(user_phone, opcion, estado):
     else:
         enviar_whatsapp(user_phone, "❌ Opción inválida. Intenta nuevamente.")
         mostrar_menu_whatsapp(user_phone)
-
-if __name__ == '__main__':
-    app.run(debug=True)
