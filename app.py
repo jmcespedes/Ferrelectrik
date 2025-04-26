@@ -3,8 +3,7 @@ import psycopg2
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
-import logging
-
+    
 # Configuración de Twilio
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
@@ -14,10 +13,7 @@ TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')  # Formato: whatsapp:+141
 app = Flask(__name__)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Configuración de logs
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- Configuración de base de datos (igual que tu código original) ---
+# --- Configuración de base de datos ---
 DB_CONFIG = {
     'host': os.environ['DB_HOST'],
     'dbname': os.environ['DB_NAME'],
@@ -26,107 +22,178 @@ DB_CONFIG = {
     'port': os.environ.get('DB_PORT', 5432)
 }
 
-# --- Funciones de base de datos (igual que tu código original) ---
+# --- Funciones de base de datos ---
 def conectar_db():
-    logging.debug("Conectando a la base de datos...")
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        logging.debug("Conexión establecida con la base de datos.")
-        return conn
-    except Exception as e:
-        logging.error(f"Error al conectar a la base de datos: {e}")
-        return None
+    return psycopg2.connect(**DB_CONFIG)
 
 def obtener_cliente_por_telefono(telefono):
-    logging.debug(f"Obteniendo cliente con teléfono {telefono}...")
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE telefono = %s", (telefono,))
-        cliente = cursor.fetchone()
-        conn.close()
-        logging.debug(f"Cliente encontrado: {cliente}")
-        return cliente
-    else:
-        logging.error("No se pudo obtener conexión con la base de datos.")
-        return None
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE telefono = %s", (telefono,))
+    cliente = cursor.fetchone()
+    conn.close()
+    return cliente
 
 def crear_cliente(nombre, telefono):
-    logging.debug(f"Creando cliente: {nombre}, {telefono}...")
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO clientes (nombre, telefono) VALUES (%s, %s) RETURNING id_cliente", (nombre, telefono))
-        id_cliente = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        logging.debug(f"Cliente creado con ID: {id_cliente}")
-        return id_cliente
-    else:
-        logging.error("No se pudo conectar para crear el cliente.")
-        return None
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO clientes (nombre, telefono) VALUES (%s, %s) RETURNING id_cliente", (nombre, telefono))
+    id_cliente = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return id_cliente
 
 def crear_carrito(id_cliente):
-    logging.debug(f"Creando carrito para el cliente ID: {id_cliente}...")
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO carritos (id_cliente, estado) VALUES (%s, 'activo') RETURNING id_carrito", (id_cliente,))
-        id_carrito = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        logging.debug(f"Carrito creado con ID: {id_carrito}")
-        return id_carrito
-    else:
-        logging.error("No se pudo conectar para crear el carrito.")
-        return None
-
-def crear_sesion(id_cliente):
-    logging.debug(f"Creando sesión para el cliente ID: {id_cliente}...")
-    conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO sesiones (id_cliente, estado) VALUES (%s, 'iniciada') RETURNING id_sesion", (id_cliente,))
-        id_sesion = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        logging.debug(f"Sesión creada con ID: {id_sesion}")
-        return id_sesion
-    else:
-        logging.error("No se pudo conectar para crear la sesión.")
-        return None
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO carritos (id_cliente, estado) VALUES (%s, 'activo') RETURNING id_carrito", (id_cliente,))
+    id_carrito = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return id_carrito
 
 def ver_categorias(id_carrito, user_phone):
-    logging.debug(f"Obteniendo categorías para el carrito ID: {id_carrito}...")
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_categoria, nombre FROM categorias")
-        categorias = cursor.fetchall()
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_categoria, nombre FROM categorias")
+    categorias = cursor.fetchall()
+    conn.close()
 
-        mensaje = "Elige una categoría:\n"
-        for cat in categorias:
-            mensaje += f"{cat[0]}️⃣ {cat[1]}\n"
+    mensaje = "Elige una categoría:\n"
+    for cat in categorias:
+        mensaje += f"{cat[0]}️⃣ {cat[1]}\n"
+    
+    enviar_whatsapp(user_phone, mensaje)
+    return categorias
+
+def ver_productos_por_categoria(id_categoria, id_carrito, user_phone):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_producto, nombre, precio FROM productos WHERE id_categoria = %s", (id_categoria,))
+    productos = cursor.fetchall()
+    conn.close()
+
+    if productos:
+        mensaje = "🔧 Productos disponibles:\n"
+        for prod in productos:
+            mensaje += f"💡 {prod[0]} - {prod[1]} - ${int(prod[2]):,}\n".replace(",", ".")
         
+        mensaje += "\nEscribe el ID del producto que quieres agregar al carrito:"
         enviar_whatsapp(user_phone, mensaje)
-        logging.debug(f"Enviado mensaje con categorías a {user_phone}.")
-        return categorias
+        return productos
     else:
-        logging.error("No se pudo conectar para obtener categorías.")
+        enviar_whatsapp(user_phone, "❌ No hay productos en esta categoría.")
         return None
 
+def agregar_producto_a_carrito(id_producto, id_carrito, cantidad, user_phone):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO carrito_items (id_carrito, id_producto, cantidad) VALUES (%s, %s, %s)", (id_carrito, id_producto, cantidad))
+    conn.commit()
+    conn.close()
+    enviar_whatsapp(user_phone, f"✅ Producto agregado al carrito ({cantidad} unidades).")
+
+def preguntar_precio(id_carrito, user_phone, nombre_producto=None):
+    if nombre_producto is None:
+        enviar_whatsapp(user_phone, "🔎 ¿Qué producto deseas saber el precio?")
+        return "esperando_producto"
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_producto, nombre, precio FROM productos WHERE LOWER(nombre) LIKE %s", (f"%{nombre_producto.lower()}%",))
+    resultados = cursor.fetchall()
+    conn.close()
+
+    if not resultados:
+        enviar_whatsapp(user_phone, "🔍 No encontré ese producto.")
+        return None
+
+    if len(resultados) == 1:
+        id_producto, nombre, precio = resultados[0]
+        mensaje = f"🔍 El precio de {nombre} es: ${int(precio):,}\n".replace(",", ".")
+        mensaje += f"¿Quieres agregar {nombre} al carrito? (Sí/No):"
+        enviar_whatsapp(user_phone, mensaje)
+        return {'id_producto': id_producto, 'nombre': nombre}
+    else:
+        mensaje = "🔍 Encontré varios productos:\n"
+        for p in resultados:
+            mensaje += f"💡 {p[0]} - {p[1]} - ${int(p[2]):,}\n".replace(",", ".")
+        mensaje += "Escribe el ID del producto que quieres agregar:"
+        enviar_whatsapp(user_phone, mensaje)
+        return resultados
+
+def ver_carrito(id_carrito, user_phone):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute(""" 
+        SELECT p.nombre, p.precio, c.cantidad
+        FROM carrito_items c
+        JOIN productos p ON p.id_producto = c.id_producto
+        WHERE c.id_carrito = %s
+    """, (id_carrito,))
+    items = cursor.fetchall()
+    conn.close()
+
+    if not items:
+        enviar_whatsapp(user_phone, "🛒 Tu carrito está vacío.")
+        return
+
+    total = 0
+    mensaje = "📋 Cotización de productos en tu carrito:\n"
+    for nombre, precio, cantidad in items:
+        subtotal = precio * cantidad
+        total += subtotal
+        mensaje += f"🔹 {nombre} - {cantidad} unidad(es) - ${int(subtotal):,}\n".replace(",", ".")
+    mensaje += f"💰 Total estimado: ${int(total):,}".replace(",", ".")
+    enviar_whatsapp(user_phone, mensaje)
+
+def eliminar_producto(id_carrito, user_phone, nombre_producto=None):
+    if nombre_producto is None:
+        enviar_whatsapp(user_phone, "🗑️ ¿Qué producto deseas eliminar del carrito?")
+        return "esperando_producto"
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT p.id_producto, p.nombre, c.cantidad
+        FROM carrito_items c
+        JOIN productos p ON p.id_producto = c.id_producto
+        WHERE c.id_carrito = %s AND LOWER(p.nombre) LIKE %s
+    """, (id_carrito, f"%{nombre_producto.lower()}%"))
+    productos = cursor.fetchall()
+
+    if not productos:
+        enviar_whatsapp(user_phone, "❌ No encontré ese producto en tu carrito.")
+        conn.close()
+        return None
+
+    if len(productos) == 1:
+        id_producto, nombre, cantidad = productos[0]
+        enviar_whatsapp(user_phone, f"¿Eliminar {cantidad} unidad(es) de {nombre}? (Sí/No):")
+        return {'id_producto': id_producto}
+    else:
+        mensaje = "🔍 Encontré varios productos:\n"
+        for p in productos:
+            mensaje += f"{p[0]} - {p[1]} ({p[2]}x)\n"
+        mensaje += "Escribe el ID del producto que quieres eliminar:"
+        enviar_whatsapp(user_phone, mensaje)
+        return productos
+
+def finalizar_compra(id_carrito, user_phone):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE carritos SET estado = 'finalizado' WHERE id_carrito = %s", (id_carrito,))
+    conn.commit()
+    conn.close()
+    enviar_whatsapp(user_phone, "✅ ¡Gracias por tu compra! 🛠️")
+
+# Función para enviar mensajes por WhatsApp
 def enviar_whatsapp(destino, mensaje):
-    logging.debug(f"Enviando mensaje a {destino}: {mensaje}")
-    try:
-        twilio_client.messages.create(
-            body=mensaje,
-            from_=TWILIO_PHONE_NUMBER,
-            to=f"whatsapp:{destino}"
-        )
-        logging.debug("Mensaje enviado con éxito.")
-    except Exception as e:
-        logging.error(f"Error al enviar mensaje por WhatsApp: {e}")
+    twilio_client.messages.create(
+        body=mensaje,
+        from_=TWILIO_PHONE_NUMBER,
+        to=f"whatsapp:{destino}"
+    )
 
 # Estado de las conversaciones (para manejar flujos)
 conversaciones = {}
@@ -135,8 +202,6 @@ conversaciones = {}
 def whatsapp_webhook():
     user_phone = request.values.get('From', '').replace('whatsapp:', '')
     user_message = request.values.get('Body', '').strip()
-
-    logging.debug(f"Mensaje recibido de {user_phone}: {user_message}")
     
     # Inicializar respuesta
     resp = MessagingResponse()
@@ -147,7 +212,6 @@ def whatsapp_webhook():
     if 'esperando' in estado:
         # Continuar flujo existente
         if estado['esperando'] == 'nombre':
-            logging.debug("Esperando nombre de cliente...")
             id_cliente = crear_cliente(user_message, user_phone)
             estado['id_cliente'] = id_cliente
             estado['id_carrito'] = crear_carrito(id_cliente)
@@ -155,11 +219,9 @@ def whatsapp_webhook():
             mostrar_menu_whatsapp(user_phone)
             
         elif estado['esperando'] == 'opcion_menu':
-            logging.debug("Esperando opción de menú...")
             manejar_opcion_menu(user_phone, user_message, estado)
             
         elif estado['esperando'] == 'id_categoria':
-            logging.debug(f"Esperando ID de categoría, mensaje recibido: {user_message}")
             productos = ver_productos_por_categoria(int(user_message), estado['id_carrito'], user_phone)
             if productos:
                 estado['productos'] = productos
@@ -167,7 +229,6 @@ def whatsapp_webhook():
                 
         elif estado['esperando'] == 'id_producto':
             if user_message.isdigit():
-                logging.debug(f"Esperando cantidad para el producto con ID {estado['id_producto']}.")
                 estado['id_producto'] = int(user_message)
                 enviar_whatsapp(user_phone, "¿Cuántas unidades deseas agregar?")
                 estado['esperando'] = 'cantidad'
@@ -182,8 +243,6 @@ def whatsapp_webhook():
             else:
                 enviar_whatsapp(user_phone, "❌ Cantidad inválida. Intenta nuevamente.")
                 
-        # ... (manejar otros estados de espera)
-        
     elif user_message.lower() == 'hola':
         # Iniciar nueva conversación
         cliente = obtener_cliente_por_telefono(user_phone)
@@ -240,4 +299,3 @@ def manejar_opcion_menu(user_phone, opcion, estado):
     else:
         enviar_whatsapp(user_phone, "❌ Opción inválida. Intenta nuevamente.")
         mostrar_menu_whatsapp(user_phone)
-
