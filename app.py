@@ -134,11 +134,13 @@ def whatsapp():
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
             respuesta.message(
                 "✅ ¡Bienvenido a 🟦 *FERRETERIA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
-                "¿En qué podemos ayudarte?\n\n"
-                "1️⃣ Buscar productos\n"
-                "2️⃣ Ver carrito\n"
-                "3️⃣ Finalizar compra"
-            )
+                  "──────────────────────────\n"
+                "🔍 *1.* Buscar productos\n"
+                "🛒 *2.* Ver carrito\n"
+                "💳 *3.* Finalizar compra\n"
+                "──────────────────────────\n"
+                "✨ *Responde con el número de la opción que prefieras!*"
+                )
             return str(respuesta)
         else:
             # Si no es un saludo, lo registramos
@@ -207,9 +209,9 @@ def whatsapp():
             texto = "🔍 *Productos encontrados:*\n\n"
             for p in productos:
                 texto += (
-                    f"🛠️ *ID:* `{p[0]}`\n"
-                    f"📦 *Producto:* *{p[1]}*\n"
-                    f"💲 *Precio:* ${int(p[2]):,}\n"
+                    f"🛠️ *ID:       * `{p[0]}`\n"
+                    f"📦 *Producto: * *{p[1]}*\n"
+                    f"💲 *Precio:   * ${int(p[2]):,}\n"
                     f"📦 *Stock disponible:* {p[3]}\n"
                     "──────────────────────\n"
                 )
@@ -244,15 +246,26 @@ def whatsapp():
             id_producto = int(dato_temp)
             agregar_producto_a_carrito(id_carrito, id_producto, cantidad)
             actualizar_sesion(id_cliente, estado="menu")
-            respuesta.message(f"✅ Producto agregado al carrito ({cantidad} unidades).\n\nEscribe:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+            respuesta.message(
+                f"🛒 ¡Listo! Agregué *{cantidad}* unidad{'es' if cantidad > 1 else ''} a tu carrito. 🎉\n\n"
+                "¿Qué quieres hacer ahora?\n"
+                "──────────────────────────\n"
+                "🔍 *1.* Buscar más productos\n"
+                "🛒 *2.* Ver mi carrito\n"
+                "💳 *3.* Finalizar compra\n"
+                "──────────────────────────\n"
+                "✨ *Responde con el número de la opción que prefieras!*"
+            )
         except:
-            respuesta.message("❌ Cantidad inválida. Intenta de nuevo.")
+            respuesta.message(
+                "❌ Parece que eso no es un número válido. 🔢\n\n"
+                "Por favor, escribe sólo la cantidad que quieres agregar. ¡Inténtalo de nuevo!"
+            )
+        else:
+            actualizar_sesion(id_cliente, estado="menu")
+            respuesta.message("👋 Volviendo al menú principal.\n\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
 
-    else:
-        actualizar_sesion(id_cliente, estado="menu")
-        respuesta.message("👋 Volviendo al menú principal.\n\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
-
-    return str(respuesta)
+        return str(respuesta)
 
 # Código para correr localmente
 if __name__ == "__main__":
