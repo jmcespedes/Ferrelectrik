@@ -264,7 +264,7 @@ def whatsapp_webhook():
     # Manejo de conversación
     manejar_conversacion(from_number)
     response.message("Conversación en progreso...")
-    
+
     return str(response)
 
 # ======================
