@@ -253,28 +253,13 @@ def whatsapp():
             agregar_producto_a_carrito(id_carrito, id_producto, cantidad)
             actualizar_sesion(id_cliente, estado="menu")
             respuesta.message(
-                f"🛒 ¡Listo! Agregué *{cantidad}* unidad{'es' if cantidad > 1 else ''} a tu carrito. 🎉\n\n"
-                "¿Qué quieres hacer ahora?\n"
-                "──────────────────────────\n"
-                "🔍 *1.* Buscar más productos\n"
-                "🛒 *2.* Ver mi carrito\n"
-                "💳 *3.* Finalizar compra\n"
-                "──────────────────────────\n"
-                "✨ *Responde con el número de la opción que prefieras!*"
+                f"🛒 ¡Listo! Agregué *{cantidad}* unidad(es) del producto al carrito."
+                "\n\nElige una opción:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra"
             )
         except:
-            respuesta.message(
-                "❌ Parece que eso no es un número válido. 🔢\n\n"
-                "Por favor, escribe sólo la cantidad que quieres agregar. ¡Inténtalo de nuevo!"
-            )
-        else:
-            actualizar_sesion(id_cliente, estado="menu")
-            respuesta.message("👋 Volviendo al menú principal.\n\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+            respuesta.message("❌ Cantidad inválida. Intenta de nuevo.")
+        
+    return str(respuesta)
 
-        return str(respuesta)
-
-# Código para correr localmente
 if __name__ == "__main__":
-    app.run(port=5000)
-
-
+    app.run(debug=True)
