@@ -81,7 +81,7 @@ def finalizar_sesion(id_cliente):
 def buscar_productos(nombre_producto):
     conn = conectar_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nombre, precio, stock, medida FROM productos WHERE LOWER(nombre) LIKE %s", (f"%{nombre_producto.lower()}%",))
+    cursor.execute("SELECT id_producto, nombre, precio, stock, medida FROM productos WHERE LOWER(nombre) LIKE %s", (f"%{nombre_producto.lower()}%",))
     productos = cursor.fetchall()
     conn.close()
     return productos
