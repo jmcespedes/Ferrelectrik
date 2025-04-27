@@ -133,7 +133,7 @@ def whatsapp():
     if not cliente:
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
             respuesta.message(
-                "✅ ¡Bienvenido a 🟦 *FERRETERIA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
+                "✅ ¡Bienvenido a 🟦 *CENTRAL* 🟨 *GRIFERIAS*! 👷‍♂️🔧\n\n"
                 "💬 Soy tu Vendedor Virtual 24/7, siempre listo para ayudarte. ✨\n\n"
                   "──────────────────────────\n"
                 "🔍 *1.* Buscar productos\n"
@@ -159,7 +159,7 @@ def whatsapp():
         crear_sesion(id_cliente, estado="menu")
         id_carrito = crear_carrito(id_cliente)
         respuesta.message(
-            f"👋 ¡Hola *{nombre}*! Qué bueno tenerte de vuelta en 🛠️🟦 *FERRETERÍA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
+            f"👋 ¡Hola *{nombre}*! Qué bueno tenerte de vuelta en 🛠️🟦 *CENTRAL* 🟨 *GRIFERIAS*! 👷‍♂️🔧\n\n"
             "💬 Soy tu Vendedor Virtual 24/7, siempre listo para ayudarte. ✨\n\n"
             "🔹 ¿En qué podemos ayudarte hoy?\n"
             "──────────────────────────\n"
