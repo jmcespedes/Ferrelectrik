@@ -231,22 +231,19 @@ def whatsapp():
     elif estado == "esperando_id_producto":
         try:
             id_producto = int(mensaje)
-            
-            # Buscar la medida del producto
-            producto = buscar_producto_por_id(id_producto)  # Debes tener esta función que retorne (nombre, medida)
+            producto = buscar_producto_por_id(id_producto)
             if not producto:
                 respuesta.message("❌ Producto no encontrado. Intenta de nuevo.")
-                return str(respuesta)
+                return str(respuesta) 
             
             nombre_producto, medida = producto
-            
             actualizar_sesion(id_cliente, estado="esperando_cantidad", dato_temp=str(id_producto))
-            
-            respuesta.message(
-                f"📦 ¿Cuántos *{medida}* de *{nombre_producto}* quieres agregar?"
-            )
+            respuesta.message(f"📦 ¿Cuántos *{medida}* de *{nombre_producto}* quieres agregar?")
+            return str(respuesta)  
+
         except:
             respuesta.message("❌ ID inválido. Intenta de nuevo.")
+            return str(respuesta)  
 
 
     elif estado == "esperando_cantidad":
