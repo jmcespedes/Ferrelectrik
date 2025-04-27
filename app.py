@@ -5,6 +5,16 @@ from twilio.rest import Client
 
 app = Flask(__name__)
 
+
+@app.route('/')  # ¡Este decorador es esencial!
+def home():
+    return "¡Bienvenido a Ferrelectrik en Render!"
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
 # Configuración corregida
 DB_CONFIG = {
     'host': os.getenv('DB_HOST'),
