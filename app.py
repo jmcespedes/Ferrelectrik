@@ -102,19 +102,19 @@ def crear_sesion(id_cliente):
         return id_sesion
     return None
 
-def mensaje_bot(mensaje):
+def mensaje_bot(mensaje, telefono):
     """Enviar mensaje de vuelta al cliente por WhatsApp"""
     app.logger.debug(f"Mensaje al bot: {mensaje}")
-    return mensaje
-
-def mensaje_usuario(mensaje):
-    """Simular mensaje del usuario"""
-    app.logger.debug(f"🧍 Tú: {mensaje}")
+    twilio_client.messages.create(
+        body=mensaje,
+        from_=TWILIO_CONFIG['phone_number'],
+        to=telefono
+    )
 
 # ======================
 # FUNCIONES DEL CHATBOT
 # ======================
-def ver_categorias(id_carrito):
+def ver_categorias(id_carrito, telefono):
     conn = conectar_db()
     if conn:
         cursor = conn.cursor()
@@ -122,19 +122,11 @@ def ver_categorias(id_carrito):
         categorias = cursor.fetchall()
         conn.close()
 
-        mensaje_bot("Elige una categoría:")
+        mensaje_bot("Elige una categoría:", telefono)
         for cat in categorias:
-            mensaje_bot(f"{cat[0]}️⃣ {cat[1]}")
+            mensaje_bot(f"{cat[0]}️⃣ {cat[1]}", telefono)
 
-        seleccion = input("🧍 Tú: ")
-        mensaje_usuario(seleccion)
-        try:
-            seleccion_id = int(seleccion)
-            ver_productos_por_categoria(seleccion_id, id_carrito)
-        except:
-            mensaje_bot("❌ Categoría inválida.")
-
-def ver_productos_por_categoria(id_categoria, id_carrito):
+def ver_productos_por_categoria(id_categoria, id_carrito, telefono):
     conn = conectar_db()
     if conn:
         cursor = conn.cursor()
@@ -143,37 +135,22 @@ def ver_productos_por_categoria(id_categoria, id_carrito):
         conn.close()
 
         if productos:
-            mensaje_bot("🔧 Productos disponibles:")
+            mensaje_bot("🔧 Productos disponibles:", telefono)
             for prod in productos:
-                mensaje_bot(f"💡 {prod[0]} - {prod[1]} - ${int(prod[2]):,}".replace(",", "."))
+                mensaje_bot(f"💡 {prod[0]} - {prod[1]} - ${int(prod[2]):,}".replace(",", "."), telefono)
 
-            mensaje_bot("Escribe el ID del producto que quieres agregar al carrito:")
-            seleccion = input("🧍 Tú: ")
-            mensaje_usuario(seleccion)
+            mensaje_bot("Escribe el ID del producto que quieres agregar al carrito:", telefono)
 
-            mensaje_bot("¿Cuántas unidades deseas agregar?")
-            cantidad = input("🧍 Tú: ")
-            mensaje_usuario(cantidad)
-
-            try:
-                id_producto = int(seleccion)
-                cantidad = int(cantidad)
-                agregar_producto_a_carrito(id_producto, id_carrito, cantidad)
-            except:
-                mensaje_bot("❌ Entrada inválida.")
-        else:
-            mensaje_bot("❌ No hay productos en esta categoría.")
-
-def agregar_producto_a_carrito(id_producto, id_carrito, cantidad):
+def agregar_producto_a_carrito(id_producto, id_carrito, cantidad, telefono):
     conn = conectar_db()
     if conn:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO carrito_items (id_carrito, id_producto, cantidad) VALUES (%s, %s, %s)", (id_carrito, id_producto, cantidad))
         conn.commit()
         conn.close()
-        mensaje_bot(f"✅ Producto agregado al carrito ({cantidad} unidades).")
+        mensaje_bot(f"✅ Producto agregado al carrito ({cantidad} unidades).", telefono)
 
-def ver_carrito(id_carrito):
+def ver_carrito(id_carrito, telefono):
     conn = conectar_db()
     if conn:
         cursor = conn.cursor()
@@ -185,21 +162,19 @@ def ver_carrito(id_carrito):
         conn.close()
 
         if not items:
-            mensaje_bot("🛒 Tu carrito está vacío.")
+            mensaje_bot("🛒 Tu carrito está vacío.", telefono)
             return
 
         total = 0
-        mensaje_bot("📋 Cotización de productos en tu carrito:")
+        mensaje_bot("📋 Cotización de productos en tu carrito:", telefono)
         for nombre, precio, cantidad in items:
             subtotal = precio * cantidad
             total += subtotal
-            mensaje_bot(f"🔹 {nombre} - {cantidad} unidad(es) - ${int(subtotal):,}".replace(",", "."))
-        mensaje_bot(f"💰 Total estimado: ${int(total):,}".replace(",", "."))
+            mensaje_bot(f"🔹 {nombre} - {cantidad} unidad(es) - ${int(subtotal):,}".replace(",", "."), telefono)
+        mensaje_bot(f"💰 Total estimado: ${int(total):,}".replace(",", "."), telefono)
 
-def eliminar_producto(id_carrito):
-    mensaje_bot("🗑️ ¿Qué producto deseas eliminar del carrito?")
-    nombre = input("🧍 Tú: ").strip().lower()
-    mensaje_usuario(nombre)
+def eliminar_producto(id_carrito, telefono):
+    mensaje_bot("🗑️ ¿Qué producto deseas eliminar del carrito?", telefono)
 
     conn = conectar_db()
     if conn:
@@ -207,83 +182,62 @@ def eliminar_producto(id_carrito):
         cursor.execute("""SELECT p.id_producto, p.nombre, c.cantidad
                           FROM carrito_items c
                           JOIN productos p ON p.id_producto = c.id_producto
-                          WHERE c.id_carrito = %s AND LOWER(p.nombre) LIKE %s""", (id_carrito, f"%{nombre}%"))
+                          WHERE c.id_carrito = %s""", (id_carrito,))
         productos = cursor.fetchall()
 
         if not productos:
-            mensaje_bot("❌ No encontré ese producto en tu carrito.")
+            mensaje_bot("❌ No encontré ese producto en tu carrito.", telefono)
             conn.close()
             return
 
         if len(productos) == 1:
             id_producto, nombre, cantidad = productos[0]
-            mensaje_bot(f"¿Eliminar {cantidad} unidad(es) de {nombre}? (Sí/No):")
-            confirmar = input("🧍 Tú: ").strip().lower()
-            mensaje_usuario(confirmar)
-            if confirmar == "si":
-                cursor.execute("DELETE FROM carrito_items WHERE id_carrito = %s AND id_producto = %s", (id_carrito, id_producto))
-                conn.commit()
-                mensaje_bot("✅ Producto eliminado del carrito.")
+            mensaje_bot(f"¿Eliminar {cantidad} unidad(es) de {nombre}? (Sí/No):", telefono)
         else:
-            mensaje_bot("🔍 Encontré varios productos:")
+            mensaje_bot("🔍 Encontré varios productos:", telefono)
             for p in productos:
-                mensaje_bot(f"{p[0]} - {p[1]} ({p[2]}x)")
-            mensaje_bot("Escribe el ID del producto que quieres eliminar:")
-            seleccion = input("🧍 Tú: ")
-            mensaje_usuario(seleccion)
-            try:
-                id_producto = int(seleccion)
-                cursor.execute("DELETE FROM carrito_items WHERE id_carrito = %s AND id_producto = %s", (id_carrito, id_producto))
-                conn.commit()
-                mensaje_bot("✅ Producto eliminado.")
-            except:
-                mensaje_bot("❌ ID inválido.")
-        conn.close()
+                mensaje_bot(f"{p[0]} - {p[1]} ({p[2]}x)", telefono)
+            mensaje_bot("Escribe el ID del producto que quieres eliminar:", telefono)
 
-def finalizar_compra(id_carrito):
+def finalizar_compra(id_carrito, telefono):
     conn = conectar_db()
     if conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE carritos SET estado = 'finalizado' WHERE id_carrito = %s", (id_carrito,))
         conn.commit()
         conn.close()
-        mensaje_bot("✅ ¡Gracias por tu compra! 🛠️")
+        mensaje_bot("✅ ¡Gracias por tu compra! 🛠️", telefono)
 
-def manejar_conversacion(telefono):
+def manejar_conversacion(telefono, mensaje):
     cliente = obtener_cliente_por_telefono(telefono)
     if cliente:
         id_cliente, nombre = cliente
-        mensaje_bot(f"👋 ¡Bienvenido nuevamente, {nombre}!")
+        mensaje_bot(f"👋 ¡Bienvenido nuevamente, {nombre}!", telefono)
     else:
-        mensaje_bot("¿Cuál es tu nombre?")
-        nombre = input("🧍 Tú: ").strip()
-        mensaje_usuario(nombre)
+        mensaje_bot("¿Cuál es tu nombre?", telefono)
+        nombre = mensaje.strip()
         id_cliente = crear_cliente(nombre, telefono)
-        mensaje_bot(f"👋 ¡Bienvenido, {nombre}! Te hemos registrado.")
+        mensaje_bot(f"👋 ¡Bienvenido, {nombre}! Te hemos registrado.", telefono)
 
     crear_sesion(id_cliente)
     id_carrito = crear_carrito(id_cliente)
-    mostrar_menu(id_carrito)
+    mostrar_menu(id_carrito, telefono)
 
-def mostrar_menu(id_carrito):
-    while True:
-        mensaje_bot("""¿Qué te gustaría hacer hoy?
+def mostrar_menu(id_carrito, telefono):
+    mensaje_bot("""¿Qué te gustaría hacer hoy?
 1️⃣ Ver categorías de productos
 2️⃣ Ver carrito
-3️⃣ Finalizar compra""")
-        
-        seleccion = input("🧍 Tú: ")
-        mensaje_usuario(seleccion)
+3️⃣ Finalizar compra""", telefono)
 
-        if seleccion == "1":
-            ver_categorias(id_carrito)
-        elif seleccion == "2":
-            ver_carrito(id_carrito)
-        elif seleccion == "3":
-            finalizar_compra(id_carrito)
-            break
-        else:
-            mensaje_bot("❌ Opción no válida.")
+    # Aquí procesamos el mensaje de Twilio
+    if mensaje == "1":
+        ver_categorias(id_carrito, telefono)
+    elif mensaje == "2":
+        ver_carrito(id_carrito, telefono)
+    elif mensaje == "3":
+        finalizar_compra(id_carrito, telefono)
+    else:
+        mensaje_bot("❌ Opción no válida.", telefono)
 
 # ======================
 # RUTAS
@@ -297,7 +251,7 @@ def whatsapp_webhook():
     mensaje = request.form.get('Body').strip().lower()
 
     # Ejecutar la lógica de la conversación en segundo plano
-    threading.Thread(target=manejar_conversacion, args=(from_number,)).start()
+    threading.Thread(target=manejar_conversacion, args=(from_number, mensaje)).start()
 
     # Responder a Twilio
     response = MessagingResponse()
