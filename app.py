@@ -117,6 +117,8 @@ def whatsapp():
     respuesta = MessagingResponse()
 
     cliente = obtener_cliente_por_telefono(telefono)
+    
+    # Si el cliente no está registrado, creamos el cliente o le damos bienvenida
     if not cliente:
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
             respuesta.message(
@@ -128,6 +130,7 @@ def whatsapp():
             )
             return str(respuesta)
         else:
+            # Si no es un saludo, lo registramos
             id_cliente = crear_cliente(mensaje, telefono)
             id_sesion = crear_sesion(id_cliente, estado="menu")
             id_carrito = crear_carrito(id_cliente)
@@ -137,6 +140,7 @@ def whatsapp():
     id_cliente, nombre = cliente
     sesion = obtener_sesion(id_cliente)
 
+    # Si no hay sesión activa, la creamos y mostramos el menú
     if not sesion:
         crear_sesion(id_cliente, estado="menu")
         id_carrito = crear_carrito(id_cliente)
@@ -222,4 +226,5 @@ def whatsapp():
 # Código para correr localmente
 if __name__ == "__main__":
     app.run(port=5000)
+
 
