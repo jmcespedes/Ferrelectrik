@@ -145,14 +145,16 @@ def whatsapp():
         crear_sesion(id_cliente, estado="menu")
         id_carrito = crear_carrito(id_cliente)
         respuesta.message(
-            f"✅ ¡Bienvenido de nuevo, *{nombre}*, a 🟦 *FERRETERIA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
-            "¿En qué podemos ayudarte?\n\n"
-            "1️⃣ Buscar productos\n"
-            "2️⃣ Ver carrito\n"
-            "3️⃣ Finalizar compra"
+            f"👋 ¡Hola *{nombre}*! Qué bueno tenerte de vuelta en 🛠️🟦 *FERRETERÍA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
+            "🔵 ¿En qué podemos ayudarte hoy?\n"
+            "──────────────────────────\n"
+            "🔍 *1.* Buscar productos\n"
+            "🛒 *2.* Ver carrito\n"
+            "💳 *3.* Finalizar compra\n"
+            "──────────────────────────\n"
+            "✨ *Responde con el número de la opción que prefieras!*"
         )
         return str(respuesta)
-
     id_sesion, estado, dato_temp = sesion
 
     conn = conectar_db()
@@ -189,23 +191,41 @@ def whatsapp():
     elif estado == "buscando_producto":
         productos = buscar_productos(mensaje)
         if not productos:
-            respuesta.message("❌ No encontré productos con ese nombre. Intenta con otro.")
+            respuesta.message("❌ No encontré productos con ese nombre. Intenta con otro 🔄.")
         else:
-            texto = "🔍 Productos encontrados:\n"
+            texto = "🔍 *Productos encontrados:*\n\n"
             for p in productos:
-                texto += f"{p[0]} - {p[1]} - ${int(p[2]):,}\n"
-            texto += "\nEscribe el ID del producto que quieres agregar:"
-            actualizar_sesion(id_cliente, estado="esperando_id_producto")
+                texto += (
+                    f"🛠️ *ID:* `{p[0]}`\n"
+                    f"📦 *Producto:* *{p[1]}*\n"
+                    f"💲 *Precio:* ${int(p[2]):,}\n"
+                    f"📦 *Stock disponible:* {p[3]}\n"
+                    "──────────────────────\n"
+                )
+            texto += "✏️ *Escribe el ID del producto que quieres agregar:*"
             actualizar_sesion(id_cliente, estado="esperando_id_producto", dato_temp=mensaje)
             respuesta.message(texto.replace(",", "."))
     
     elif estado == "esperando_id_producto":
         try:
             id_producto = int(mensaje)
+            
+            # Buscar la medida del producto
+            producto = buscar_producto_por_id(id_producto)  # Debes tener esta función que retorne (nombre, medida)
+            if not producto:
+                respuesta.message("❌ Producto no encontrado. Intenta de nuevo.")
+                return str(respuesta)
+            
+            nombre_producto, medida = producto
+            
             actualizar_sesion(id_cliente, estado="esperando_cantidad", dato_temp=str(id_producto))
-            respuesta.message("📦 ¿Cuántas unidades quieres agregar?")
+            
+            respuesta.message(
+                f"📦 ¿Cuántos *{medida}* de *{nombre_producto}* quieres agregar?"
+            )
         except:
             respuesta.message("❌ ID inválido. Intenta de nuevo.")
+
 
     elif estado == "esperando_cantidad":
         try:
