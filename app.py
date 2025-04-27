@@ -99,7 +99,7 @@ def agregar_producto_a_carrito(id_carrito, id_producto, cantidad):
 def ver_carrito(id_carrito):
     conn = conectar_db()
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT p.nombre, p.precio, c.cantidad
         FROM carrito_items c
         JOIN productos p ON p.id_producto = c.id_producto
@@ -119,11 +119,13 @@ def whatsapp():
     cliente = obtener_cliente_por_telefono(telefono)
     if not cliente:
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
-            bienvenida = (
-                "👋 ¡Bienvenido a *FERRETERÍA* 🟦 *CHOCALÁN* 🟨!\n\n"
-                "¿Cuál es tu nombre?"
+            respuesta.message(
+                "✅ ¡Bienvenido a 🟦 *FERRETERIA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
+                "¿En qué podemos ayudarte?\n\n"
+                "1️⃣ Buscar productos\n"
+                "2️⃣ Ver carrito\n"
+                "3️⃣ Finalizar compra"
             )
-            respuesta.message(bienvenida)
             return str(respuesta)
         else:
             id_cliente = crear_cliente(mensaje, telefono)
@@ -138,7 +140,13 @@ def whatsapp():
     if not sesion:
         crear_sesion(id_cliente, estado="menu")
         id_carrito = crear_carrito(id_cliente)
-        respuesta.message(f"👋 ¡Hola {nombre}!\n\nEscribe un número para elegir:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+        respuesta.message(
+            f"✅ ¡Bienvenido de nuevo, *{nombre}*, a 🟦 *FERRETERIA* 🟨 *CHOCALÁN*! 👷‍♂️🔧\n\n"
+            "¿En qué podemos ayudarte?\n\n"
+            "1️⃣ Buscar productos\n"
+            "2️⃣ Ver carrito\n"
+            "3️⃣ Finalizar compra"
+        )
         return str(respuesta)
 
     id_sesion, estado, dato_temp = sesion
@@ -183,6 +191,7 @@ def whatsapp():
             for p in productos:
                 texto += f"{p[0]} - {p[1]} - ${int(p[2]):,}\n"
             texto += "\nEscribe el ID del producto que quieres agregar:"
+            actualizar_sesion(id_cliente, estado="esperando_id_producto")
             actualizar_sesion(id_cliente, estado="esperando_id_producto", dato_temp=mensaje)
             respuesta.message(texto.replace(",", "."))
     
