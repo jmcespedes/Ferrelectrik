@@ -72,11 +72,11 @@ def crear_sesion(id_cliente):
 
 def mensaje_bot(mensaje):
     """Enviar mensaje de vuelta al cliente por WhatsApp"""
-    return mensaje
+    print(f"Bot: {mensaje}")  # Agregado para depuración
 
 def mensaje_usuario(mensaje):
     """Simular mensaje del usuario"""
-    print(f"🧍 Tú: {mensaje}")
+    print(f"🧍 Tú: {mensaje}")  # Agregado para depuración
 
 # ======================
 # FUNCIONES DEL CHATBOT
@@ -211,6 +211,7 @@ def finalizar_compra(id_carrito):
     mensaje_bot("✅ ¡Gracias por tu compra! 🛠️")
 
 def manejar_conversacion(telefono):
+    print(f"🔍 Iniciando conversación con el número: {telefono}")  # Log de depuración
     cliente = obtener_cliente_por_telefono(telefono)
     if cliente:
         id_cliente, nombre = cliente
@@ -256,15 +257,23 @@ def mostrar_menu(id_carrito):
 
 @app.route('/whatsapp', methods=['POST'])
 def whatsapp_webhook():
+    print(f"🔍 Recibido mensaje: {request.form}")  # Log de depuración
+
     from_number = request.form.get('From')
     body = request.form.get('Body').strip()
+
+    print(f"Recibido mensaje de {from_number}: {body}")  # Log de depuración
 
     response = MessagingResponse()
 
     # Manejo de conversación
-    manejar_conversacion(from_number)
-    response.message("Conversación en progreso...")
+    try:
+        manejar_conversacion(from_number)
+    except Exception as e:
+        print(f"Error en la conversación: {e}")  # Log de error
+        response.message("Hubo un error procesando tu solicitud.")
 
+    response.message("Conversación en progreso...")
     return str(response)
 
 # ======================
