@@ -4,6 +4,9 @@ from flask import Flask, jsonify, request
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import logging
+from celery import Celery
+import threading
+import time
 
 app = Flask(__name__)
 
@@ -32,6 +35,12 @@ twilio_client = Client(TWILIO_CONFIG['account_sid'], TWILIO_CONFIG['auth_token']
 # Configura el logger de Flask para mayor detalle
 app.config['DEBUG'] = True
 app.logger.setLevel(logging.DEBUG)
+
+# ======================
+# CONFIGURACIÓN CELERY
+# ======================
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'  # Asegúrate de que Redis esté instalado
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 
 # ======================
 # FUNCIONES UTILITARIAS
@@ -285,25 +294,15 @@ def whatsapp_webhook():
     
     # Datos recibidos
     from_number = request.form.get('From')
-    body = request.form.get('Body').strip()
+    mensaje = request.form.get('Body').strip().lower()
 
-    app.logger.debug(f"Datos recibidos: {from_number}, {body}")
+    # Ejecutar la lógica de la conversación en segundo plano
+    threading.Thread(target=manejar_conversacion, args=(from_number,)).start()
 
+    # Responder a Twilio
     response = MessagingResponse()
-    
-    try:
-        # Manejo de conversación
-        manejar_conversacion(from_number)
-        response.message("Conversación en progreso...")
+    response.message("🛠️ ¡Hola! Estoy procesando tu solicitud.")
+    return str(response)
 
-        app.logger.debug("Mensaje de respuesta enviado a Twilio")
-
-        return str(response)
-    except Exception as e:
-        app.logger.error(f"Error al manejar la conversación: {e}")
-        response.message("Hubo un problema en el servidor. Intenta nuevamente.")
-        return str(response), 500
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
-
