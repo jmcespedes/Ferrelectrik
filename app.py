@@ -119,7 +119,11 @@ def whatsapp():
     cliente = obtener_cliente_por_telefono(telefono)
     if not cliente:
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
-            respuesta.message("👋 ¡Bienvenido a Ferretería Moderna! ¿Cuál es tu nombre?")
+            bienvenida = (
+                "👋 ¡Bienvenido a *FERRETERÍA* 🟦 *CHOCALÁN* 🟨!\n\n"
+                "¿Cuál es tu nombre?"
+            )
+            respuesta.message(bienvenida)
             return str(respuesta)
         else:
             id_cliente = crear_cliente(mensaje, telefono)
@@ -179,7 +183,6 @@ def whatsapp():
             for p in productos:
                 texto += f"{p[0]} - {p[1]} - ${int(p[2]):,}\n"
             texto += "\nEscribe el ID del producto que quieres agregar:"
-            actualizar_sesion(id_cliente, estado="esperando_id_producto")
             actualizar_sesion(id_cliente, estado="esperando_id_producto", dato_temp=mensaje)
             respuesta.message(texto.replace(",", "."))
     
