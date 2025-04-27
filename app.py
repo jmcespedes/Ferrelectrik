@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from twilio.rest import Client
 
 app = Flask(__name__)
@@ -82,6 +82,30 @@ def test_sms():
         body="Prueba exitosa desde Ferrelectrik API"
     )
     return jsonify({"sms_sid": sid}) if sid else jsonify({"error": "Failed to send SMS"}), 500
+
+@app.route('/whatsapp', methods=['POST'])
+def whatsapp_webhook():
+    """Manejo de los mensajes entrantes de WhatsApp"""
+    try:
+        # Extrae el mensaje entrante y el número de teléfono desde Twilio
+        from_number = request.form.get('From')
+        body = request.form.get('Body')
+
+        # Aquí puedes agregar lógica para almacenar el mensaje en la base de datos
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO mensajes (numero, cuerpo) VALUES (%s, %s)", (from_number, body))
+            conn.commit()
+            cursor.close()
+
+        # Responde con un mensaje automático (puedes personalizarlo)
+        send_sms(from_number, "Gracias por tu mensaje. Te responderemos pronto.")
+
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        app.logger.error(f"Error en webhook de WhatsApp: {str(e)}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 # ======================
 # INICIALIZACIÓN
