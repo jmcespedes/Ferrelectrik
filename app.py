@@ -1,222 +1,212 @@
-import os
+from flask import Flask, request
 import psycopg2
-from flask import Flask, jsonify, request
-from twilio.rest import Client
+import os
 from twilio.twiml.messaging_response import MessagingResponse
-import logging
-from celery import Celery
-import threading
-import time
 
 app = Flask(__name__)
 
-# ======================
-# CONFIGURACIÓN
-# ======================
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST'),
-    'database': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASS'),
-    'port': os.getenv('DB_PORT', '5432')
-}
-
-TWILIO_CONFIG = {
-    'account_sid': os.getenv('TWILIO_ACCOUNT_SID'),
-    'auth_token': os.getenv('TWILIO_AUTH_TOKEN'),
-    'phone_number': os.getenv('TWILIO_PHONE_NUMBER')
-}
-
-# ======================
-# INICIALIZACIÓN
-# ======================
-twilio_client = Client(TWILIO_CONFIG['account_sid'], TWILIO_CONFIG['auth_token'])
-
-# Configura el logger de Flask para mayor detalle
-app.config['DEBUG'] = True
-app.logger.setLevel(logging.DEBUG)
-
-# ======================
-# CONFIGURACIÓN CELERY
-# ======================
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'  # Asegúrate de que Redis esté instalado
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-
-# ======================
-# FUNCIONES UTILITARIAS
-# ======================
+# Función para conectar a la base de datos
 def conectar_db():
-    """Establece la conexión con la base de datos PostgreSQL"""
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        app.logger.debug("Conexión a la base de datos exitosa")
-        return conn
-    except Exception as e:
-        app.logger.error(f"Error al conectar a la base de datos: {e}")
-        return None
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASS"),
+    )
 
+# Funciones de lógica de negocio
 def obtener_cliente_por_telefono(telefono):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE telefono = %s", (telefono,))
-        cliente = cursor.fetchone()
-        conn.close()
-        app.logger.debug(f"Cliente encontrado: {cliente}")
-        return cliente
-    return None
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE telefono = %s", (telefono,))
+    cliente = cursor.fetchone()
+    conn.close()
+    return cliente
 
 def crear_cliente(nombre, telefono):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO clientes (nombre, telefono) VALUES (%s, %s) RETURNING id_cliente", (nombre, telefono))
-        id_cliente = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        app.logger.debug(f"Cliente creado con ID: {id_cliente}")
-        return id_cliente
-    return None
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO clientes (nombre, telefono) VALUES (%s, %s) RETURNING id_cliente", (nombre, telefono))
+    id_cliente = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return id_cliente
 
 def crear_carrito(id_cliente):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO carritos (id_cliente, estado) VALUES (%s, 'activo') RETURNING id_carrito", (id_cliente,))
-        id_carrito = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        app.logger.debug(f"Carrito creado con ID: {id_carrito}")
-        return id_carrito
-    return None
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO carritos (id_cliente, estado) VALUES (%s, 'activo') RETURNING id_carrito", (id_cliente,))
+    id_carrito = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return id_carrito
 
-def crear_sesion(id_cliente):
+def crear_sesion(id_cliente, estado='inicio', dato_temp=None):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO sesiones (id_cliente, estado) VALUES (%s, 'iniciada') RETURNING id_sesion", (id_cliente,))
-        id_sesion = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
-        app.logger.debug(f"Sesión creada con ID: {id_sesion}")
-        return id_sesion
-    return None
-
-def mensaje_bot(mensaje, telefono):
-    """Enviar mensaje de vuelta al cliente por WhatsApp"""
-    app.logger.debug(f"Mensaje al bot: {mensaje}")
-    twilio_client.messages.create(
-        body=mensaje,
-        from_=TWILIO_CONFIG['phone_number'],
-        to=telefono
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO sesiones (id_cliente, estado, dato_temp) VALUES (%s, %s, %s) RETURNING id_sesion",
+        (id_cliente, estado, dato_temp)
     )
+    id_sesion = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return id_sesion
 
-def mensaje_usuario(mensaje):
-    """Simular mensaje del usuario"""
-    app.logger.debug(f"🧍 Tú: {mensaje}")
-
-# ======================
-# FUNCIONES DEL CHATBOT
-# ======================
-def ver_categorias(id_carrito, telefono):
+def actualizar_sesion(id_cliente, estado, dato_temp=None):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_categoria, nombre FROM categorias")
-        categorias = cursor.fetchall()
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE sesiones SET estado = %s, dato_temp = %s WHERE id_cliente = %s AND estado != 'finalizado'",
+        (estado, dato_temp, id_cliente)
+    )
+    conn.commit()
+    conn.close()
 
-        mensaje_bot("Elige una categoría:", telefono)
-        for cat in categorias:
-            mensaje_bot(f"{cat[0]}️⃣ {cat[1]}", telefono)
-
-def ver_carrito(id_carrito, telefono):
+def obtener_sesion(id_cliente):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("""SELECT p.nombre, p.precio, c.cantidad
-                          FROM carrito_items c
-                          JOIN productos p ON p.id_producto = c.id_producto
-                          WHERE c.id_carrito = %s""", (id_carrito,))
-        items = cursor.fetchall()
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_sesion, estado, dato_temp FROM sesiones WHERE id_cliente = %s AND estado != 'finalizado'", (id_cliente,))
+    sesion = cursor.fetchone()
+    conn.close()
+    return sesion
 
-        if not items:
-            mensaje_bot("🛒 Tu carrito está vacío.", telefono)
-            return
-
-        total = 0
-        mensaje_bot("📋 Cotización de productos en tu carrito:", telefono)
-        for nombre, precio, cantidad in items:
-            subtotal = precio * cantidad
-            total += subtotal
-            mensaje_bot(f"🔹 {nombre} - {cantidad} unidad(es) - ${int(subtotal):,}".replace(",", "."), telefono)
-        mensaje_bot(f"💰 Total estimado: ${int(total):,}".replace(",", "."), telefono)
-
-def finalizar_compra(id_carrito, telefono):
+def finalizar_sesion(id_cliente):
     conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE carritos SET estado = 'finalizado' WHERE id_carrito = %s", (id_carrito,))
-        conn.commit()
-        conn.close()
-        mensaje_bot("✅ ¡Gracias por tu compra! 🛠️", telefono)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE sesiones SET estado = 'finalizado' WHERE id_cliente = %s", (id_cliente,))
+    conn.commit()
+    conn.close()
 
-def manejar_conversacion(telefono, mensaje):
+def buscar_productos(nombre_producto):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_producto, nombre, precio FROM productos WHERE LOWER(nombre) LIKE %s", (f"%{nombre_producto.lower()}%",))
+    productos = cursor.fetchall()
+    conn.close()
+    return productos
+
+def agregar_producto_a_carrito(id_carrito, id_producto, cantidad):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO carrito_items (id_carrito, id_producto, cantidad) VALUES (%s, %s, %s)",
+        (id_carrito, id_producto, cantidad)
+    )
+    conn.commit()
+    conn.close()
+
+def ver_carrito(id_carrito):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT p.nombre, p.precio, c.cantidad
+        FROM carrito_items c
+        JOIN productos p ON p.id_producto = c.id_producto
+        WHERE c.id_carrito = %s
+    """, (id_carrito,))
+    items = cursor.fetchall()
+    conn.close()
+    return items
+
+# Ruta webhook de WhatsApp
+@app.route("/whatsapp", methods=["POST"])
+def whatsapp():
+    telefono = request.form['From'].split(":")[-1]
+    mensaje = request.form['Body'].strip()
+    respuesta = MessagingResponse()
+
     cliente = obtener_cliente_por_telefono(telefono)
+    if not cliente:
+        if mensaje.lower() in ["hola", "buenas", "iniciar"]:
+            respuesta.message("👋 ¡Bienvenido a Ferretería Moderna! ¿Cuál es tu nombre?")
+            return str(respuesta)
+        else:
+            id_cliente = crear_cliente(mensaje, telefono)
+            id_sesion = crear_sesion(id_cliente, estado="menu")
+            id_carrito = crear_carrito(id_cliente)
+            respuesta.message(f"✅ ¡Hola {mensaje}! Tu cuenta ha sido creada.\n\nEscribe un número para elegir:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+            return str(respuesta)
+
+    id_cliente, nombre = cliente
+    sesion = obtener_sesion(id_cliente)
+
+    if not sesion:
+        crear_sesion(id_cliente, estado="menu")
+        id_carrito = crear_carrito(id_cliente)
+        respuesta.message(f"👋 ¡Hola {nombre}!\n\nEscribe un número para elegir:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+        return str(respuesta)
+
+    id_sesion, estado, dato_temp = sesion
+
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_carrito FROM carritos WHERE id_cliente = %s AND estado = 'activo' ORDER BY id_carrito DESC LIMIT 1", (id_cliente,))
+    carrito = cursor.fetchone()
+    conn.close()
+    id_carrito = carrito[0] if carrito else crear_carrito(id_cliente)
+
+    if estado == "menu":
+        if mensaje == "1":
+            actualizar_sesion(id_cliente, estado="buscando_producto")
+            respuesta.message("🔍 Escribe el nombre del producto que quieres buscar:")
+        elif mensaje == "2":
+            items = ver_carrito(id_carrito)
+            if not items:
+                respuesta.message("🛒 Tu carrito está vacío.")
+            else:
+                texto = "🛒 Tu carrito contiene:\n"
+                total = 0
+                for nombre, precio, cantidad in items:
+                    subtotal = precio * cantidad
+                    total += subtotal
+                    texto += f"🔹 {nombre} x{cantidad} = ${subtotal:,}\n"
+                texto += f"\n💰 Total: ${total:,}"
+                respuesta.message(texto.replace(",", "."))
+            actualizar_sesion(id_cliente, estado="menu")
+        elif mensaje == "3":
+            finalizar_sesion(id_cliente)
+            respuesta.message("✅ ¡Gracias por tu compra! 🛠️")
+        else:
+            respuesta.message("❌ Opción inválida. Por favor elige 1, 2 o 3.")
     
-    if cliente:
-        id_cliente, nombre = cliente
-        mensaje_bot(f"👋 ¡Bienvenido nuevamente, {nombre}!", telefono)
-    else:
-        # Si el cliente no existe, pedir su nombre
-        mensaje_bot("¿Cuál es tu nombre?", telefono)
-        return  # Salimos aquí para esperar el nombre del usuario
-
-    # En este punto, ya tenemos al usuario registrado y podemos continuar con el flujo
-    id_cliente = crear_cliente(nombre, telefono)  # Si el cliente no estaba, lo creamos
-    id_carrito = crear_carrito(id_cliente)  # Creamos el carrito para este cliente
-    crear_sesion(id_cliente)  # Sesión iniciada para el cliente
-
-    # Mostrar el menú principal de opciones al usuario
-    mostrar_menu(id_carrito, telefono, mensaje)
-
-def mostrar_menu(id_carrito, telefono, mensaje):
-    """Envía un menú principal al usuario"""
-    mensaje_bot("""¿Qué te gustaría hacer hoy?
-1️⃣ Ver categorías de productos
-2️⃣ Ver carrito
-3️⃣ Finalizar compra""", telefono)
-
-    # Aquí procesamos el mensaje de Twilio
-    if mensaje == "1":
-        ver_categorias(id_carrito, telefono)
-    elif mensaje == "2":
-        ver_carrito(id_carrito, telefono)
-    elif mensaje == "3":
-        finalizar_compra(id_carrito, telefono)
-    else:
-        mensaje_bot("❌ Opción no válida. Por favor, elige una opción del menú.", telefono)
-
-# ======================
-# RUTAS
-# ======================
-@app.route('/whatsapp', methods=['POST'])
-def whatsapp_webhook():
-    app.logger.debug("Recibiendo datos de Twilio")
+    elif estado == "buscando_producto":
+        productos = buscar_productos(mensaje)
+        if not productos:
+            respuesta.message("❌ No encontré productos con ese nombre. Intenta con otro.")
+        else:
+            texto = "🔍 Productos encontrados:\n"
+            for p in productos:
+                texto += f"{p[0]} - {p[1]} - ${int(p[2]):,}\n"
+            texto += "\nEscribe el ID del producto que quieres agregar:"
+            actualizar_sesion(id_cliente, estado="esperando_id_producto")
+            actualizar_sesion(id_cliente, estado="esperando_id_producto", dato_temp=mensaje)
+            respuesta.message(texto.replace(",", "."))
     
-    # Datos recibidos
-    from_number = request.form.get('From')
-    mensaje = request.form.get('Body').strip().lower()
+    elif estado == "esperando_id_producto":
+        try:
+            id_producto = int(mensaje)
+            actualizar_sesion(id_cliente, estado="esperando_cantidad", dato_temp=str(id_producto))
+            respuesta.message("📦 ¿Cuántas unidades quieres agregar?")
+        except:
+            respuesta.message("❌ ID inválido. Intenta de nuevo.")
 
-    # Ejecutar la lógica de la conversación en segundo plano
-    threading.Thread(target=manejar_conversacion, args=(from_number, mensaje)).start()
+    elif estado == "esperando_cantidad":
+        try:
+            cantidad = int(mensaje)
+            id_producto = int(dato_temp)
+            agregar_producto_a_carrito(id_carrito, id_producto, cantidad)
+            actualizar_sesion(id_cliente, estado="menu")
+            respuesta.message(f"✅ Producto agregado al carrito ({cantidad} unidades).\n\nEscribe:\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
+        except:
+            respuesta.message("❌ Cantidad inválida. Intenta de nuevo.")
 
-    # Responder a Twilio
-    response = MessagingResponse()
-    response.message("🛠️ ¡Hola! Estoy procesando tu solicitud.")
-    return str(response)
+    else:
+        actualizar_sesion(id_cliente, estado="menu")
+        respuesta.message("👋 Volviendo al menú principal.\n\n1️⃣ Buscar productos\n2️⃣ Ver carrito\n3️⃣ Finalizar compra")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    return str(respuesta)
 
+# Código para correr localmente
+if __name__ == "__main__":
+    app.run(port=5000)
