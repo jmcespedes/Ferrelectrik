@@ -184,16 +184,25 @@ def whatsapp():
         elif mensaje == "2":
             items = ver_carrito(id_carrito)
             if not items:
-                respuesta.message("🛒 Tu carrito está vacío.")
+                respuesta.message("🛒 Tu carrito está vacío. ¡Agrega productos para comenzar! 🔨")
             else:
-                texto = "🛒 Tu carrito contiene:\n"
+                texto = "🛒 *Tu carrito contiene:*\n\n"
+                texto += "📦 *Producto*         |  🔢 *Cant.*  |  💲 *Subtotal*\n"
+                texto += "────────────────────────────────────────\n"
+
                 total = 0
                 for nombre, precio, cantidad in items:
                     subtotal = precio * cantidad
                     total += subtotal
-                    texto += f"🔹 {nombre} x{cantidad} = ${subtotal:,}\n"
-                texto += f"\n💰 Total: ${total:,}"
+                    # Formateo bonito
+                    texto += f"🔹 {nombre.ljust(15)[:15]} | {str(cantidad).rjust(5)}     | ${subtotal:,.0f}\n"
+
+                texto += "────────────────────────────────────────\n"
+                texto += f"💰 *Total:* ${total:,.0f}"
+
+                # Para que en WhatsApp se vea el punto como separador de miles
                 respuesta.message(texto.replace(",", "."))
+            
             actualizar_sesion(id_cliente, estado="menu")
         elif mensaje == "3":
             finalizar_sesion(id_cliente)
