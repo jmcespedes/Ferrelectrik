@@ -14,5 +14,6 @@ six==1.17.0
 tzdata==2025.2
 vine==5.1.0
 wcwidth==0.2.13
-psycopg2==2.9.5
+psycopg2-binary==2.9.3
+flask==2.1.2
 
