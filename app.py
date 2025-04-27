@@ -86,6 +86,17 @@ def buscar_productos(nombre_producto):
     conn.close()
     return productos
 
+def buscar_producto_por_id(id_producto):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT nombre, medida FROM productos WHERE id_producto = %s",
+        (id_producto,)
+    )
+    producto = cursor.fetchone()
+    conn.close()
+    return producto
+
 def agregar_producto_a_carrito(id_carrito, id_producto, cantidad):
     conn = conectar_db()
     cursor = conn.cursor()
