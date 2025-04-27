@@ -1,29 +1,56 @@
+import os
 import psycopg2
-from flask import Flask
+from flask import Flask, jsonify
+from twilio.rest import Client
 
 app = Flask(__name__)
 
-# Configuración de la base de datos
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST'),
-    'dbname': os.getenv('DB_NAME'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASS'),
-    'port': os.getenv('DB_PORT', 5432)  # Asegúrate de que este puerto sea correcto
-}
+# Conexión a PostgreSQL para Render
+def get_db_connection():
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASS'),
+        port=os.getenv('DB_PORT', 5432)
+    return conn
 
-def conectar_db():
+# Configuración Twilio
+twilio_client = Client(
+    os.getenv('TWILIO_ACCOUNT_SID'),
+    os.getenv('TWILIO_AUTH_TOKEN')
+)
+
+@app.route('/test-db')
+def test_db():
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        print("Conexión exitosa a la base de datos")
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT version();')
+        db_version = cur.fetchone()
+        cur.close()
         conn.close()
+        
+        # Notificación vía Twilio
+        twilio_client.messages.create(
+            body=f'Conexión exitosa a PostgreSQL: {db_version[0]}',
+            from_=os.getenv('TWILIO_PHONE_NUMBER'),
+            to=os.getenv('YOUR_PHONE')  # Añade esta variable en Render
+        )
+        
+        return jsonify({
+            'status': 'success',
+            'db_version': db_version[0]
+        })
     except Exception as e:
-        print(f"Error al conectar a la base de datos: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/')
-def index():
-    conectar_db()
-    return "Hola, conexión con la base de datos exitosa!"
+def home():
+    return "¡App funcionando en Render con PostgreSQL y Twilio!"
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.getenv('DEBUG', 'False') == 'True')
