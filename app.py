@@ -111,6 +111,10 @@ def mensaje_bot(mensaje, telefono):
         to=telefono
     )
 
+def mensaje_usuario(mensaje):
+    """Simular mensaje del usuario"""
+    app.logger.debug(f"🧍 Tú: {mensaje}")
+
 # ======================
 # FUNCIONES DEL CHATBOT
 # ======================
@@ -125,30 +129,6 @@ def ver_categorias(id_carrito, telefono):
         mensaje_bot("Elige una categoría:", telefono)
         for cat in categorias:
             mensaje_bot(f"{cat[0]}️⃣ {cat[1]}", telefono)
-
-def ver_productos_por_categoria(id_categoria, id_carrito, telefono):
-    conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_producto, nombre, precio FROM productos WHERE id_categoria = %s", (id_categoria,))
-        productos = cursor.fetchall()
-        conn.close()
-
-        if productos:
-            mensaje_bot("🔧 Productos disponibles:", telefono)
-            for prod in productos:
-                mensaje_bot(f"💡 {prod[0]} - {prod[1]} - ${int(prod[2]):,}".replace(",", "."), telefono)
-
-            mensaje_bot("Escribe el ID del producto que quieres agregar al carrito:", telefono)
-
-def agregar_producto_a_carrito(id_producto, id_carrito, cantidad, telefono):
-    conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO carrito_items (id_carrito, id_producto, cantidad) VALUES (%s, %s, %s)", (id_carrito, id_producto, cantidad))
-        conn.commit()
-        conn.close()
-        mensaje_bot(f"✅ Producto agregado al carrito ({cantidad} unidades).", telefono)
 
 def ver_carrito(id_carrito, telefono):
     conn = conectar_db()
@@ -173,32 +153,6 @@ def ver_carrito(id_carrito, telefono):
             mensaje_bot(f"🔹 {nombre} - {cantidad} unidad(es) - ${int(subtotal):,}".replace(",", "."), telefono)
         mensaje_bot(f"💰 Total estimado: ${int(total):,}".replace(",", "."), telefono)
 
-def eliminar_producto(id_carrito, telefono):
-    mensaje_bot("🗑️ ¿Qué producto deseas eliminar del carrito?", telefono)
-
-    conn = conectar_db()
-    if conn:
-        cursor = conn.cursor()
-        cursor.execute("""SELECT p.id_producto, p.nombre, c.cantidad
-                          FROM carrito_items c
-                          JOIN productos p ON p.id_producto = c.id_producto
-                          WHERE c.id_carrito = %s""", (id_carrito,))
-        productos = cursor.fetchall()
-
-        if not productos:
-            mensaje_bot("❌ No encontré ese producto en tu carrito.", telefono)
-            conn.close()
-            return
-
-        if len(productos) == 1:
-            id_producto, nombre, cantidad = productos[0]
-            mensaje_bot(f"¿Eliminar {cantidad} unidad(es) de {nombre}? (Sí/No):", telefono)
-        else:
-            mensaje_bot("🔍 Encontré varios productos:", telefono)
-            for p in productos:
-                mensaje_bot(f"{p[0]} - {p[1]} ({p[2]}x)", telefono)
-            mensaje_bot("Escribe el ID del producto que quieres eliminar:", telefono)
-
 def finalizar_compra(id_carrito, telefono):
     conn = conectar_db()
     if conn:
@@ -210,20 +164,25 @@ def finalizar_compra(id_carrito, telefono):
 
 def manejar_conversacion(telefono, mensaje):
     cliente = obtener_cliente_por_telefono(telefono)
+    
     if cliente:
         id_cliente, nombre = cliente
         mensaje_bot(f"👋 ¡Bienvenido nuevamente, {nombre}!", telefono)
     else:
+        # Si el cliente no existe, pedir su nombre
         mensaje_bot("¿Cuál es tu nombre?", telefono)
-        nombre = mensaje.strip()
-        id_cliente = crear_cliente(nombre, telefono)
-        mensaje_bot(f"👋 ¡Bienvenido, {nombre}! Te hemos registrado.", telefono)
+        return  # Salimos aquí para esperar el nombre del usuario
 
-    crear_sesion(id_cliente)
-    id_carrito = crear_carrito(id_cliente)
-    mostrar_menu(id_carrito, telefono)
+    # En este punto, ya tenemos al usuario registrado y podemos continuar con el flujo
+    id_cliente = crear_cliente(nombre, telefono)  # Si el cliente no estaba, lo creamos
+    id_carrito = crear_carrito(id_cliente)  # Creamos el carrito para este cliente
+    crear_sesion(id_cliente)  # Sesión iniciada para el cliente
 
-def mostrar_menu(id_carrito, telefono):
+    # Mostrar el menú principal de opciones al usuario
+    mostrar_menu(id_carrito, telefono, mensaje)
+
+def mostrar_menu(id_carrito, telefono, mensaje):
+    """Envía un menú principal al usuario"""
     mensaje_bot("""¿Qué te gustaría hacer hoy?
 1️⃣ Ver categorías de productos
 2️⃣ Ver carrito
@@ -237,7 +196,7 @@ def mostrar_menu(id_carrito, telefono):
     elif mensaje == "3":
         finalizar_compra(id_carrito, telefono)
     else:
-        mensaje_bot("❌ Opción no válida.", telefono)
+        mensaje_bot("❌ Opción no válida. Por favor, elige una opción del menú.", telefono)
 
 # ======================
 # RUTAS
@@ -260,3 +219,4 @@ def whatsapp_webhook():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
