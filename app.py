@@ -2,6 +2,7 @@ from flask import Flask, request
 import psycopg2
 import os
 from twilio.twiml.messaging_response import MessagingResponse
+from ia_construccion import es_consulta_construccion, responder_consulta_construccion
 
 app = Flask(__name__)
 
@@ -12,6 +13,17 @@ def conectar_db():
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASS"),
     )
+
+def es_consulta_construccion(mensaje):
+    mensaje = mensaje.lower()
+    palabras_clave = [
+        "radier", "cemento", "arena", "ripio", "hacer mezcla",
+        "cuánto necesito", "cuantos sacos", "materiales", "hormigón",
+        "cuanto cemento", "cuanto material", "mezcla radier"
+    ]
+    return any(p in mensaje for p in palabras_clave)
+
+
 def obtener_cliente_por_telefono(telefono):
     conn = conectar_db()
     cursor = conn.cursor()
@@ -172,6 +184,18 @@ def whatsapp():
     id_carrito = carrito[0] if carrito else crear_carrito(id_cliente)
 
     if estado == "menu":
+
+        if es_consulta_construccion(mensaje):
+           ## from ia_construccion import responder_consulta_construccion
+            resultado = responder_consulta_construccion(mensaje)
+            actualizar_sesion(id_cliente, estado="menu")
+            respuesta.message(
+                f"📐 Aquí tienes una recomendación:\n\n{resultado}\n\n"
+                "¿Deseas agregar alguno de estos productos al carrito? 🛒"
+            )
+            return str(respuesta)
+
+
         if mensaje == "1":
             actualizar_sesion(id_cliente, estado="buscando_producto")
             respuesta.message("🔍 Escribe el nombre del producto que quieres buscar:")
@@ -201,6 +225,9 @@ def whatsapp():
         elif mensaje == "3":
             finalizar_sesion(id_cliente)
             respuesta.message("✅ ¡Gracias por tu compra! 🛠️")
+
+
+      
         else:
             respuesta.message("❌ Opción inválida. Por favor elige 1, 2 o 3.")
     
