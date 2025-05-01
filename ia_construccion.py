@@ -1,7 +1,7 @@
 from transformers import pipeline
 
 # Cargar un modelo liviano en español (puedes probar otros más grandes si tienes GPU o paciencia)
-chat = pipeline("text-generation", model="mrm8488/GPT2-spanish", max_length=150)
+chat = pipeline("text-generation", model="dbmdz/gpt2-spanish", max_length=150)
 
 def responder_consulta_construccion(pregunta_usuario):
     prompt = (
