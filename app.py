@@ -5,7 +5,6 @@ from twilio.twiml.messaging_response import MessagingResponse
 
 app = Flask(__name__)
 
-# Función para conectar a la base de datos
 def conectar_db():
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
@@ -13,8 +12,6 @@ def conectar_db():
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASS"),
     )
-
-# Funciones de lógica de negocio
 def obtener_cliente_por_telefono(telefono):
     conn = conectar_db()
     cursor = conn.cursor()
@@ -22,7 +19,6 @@ def obtener_cliente_por_telefono(telefono):
     cliente = cursor.fetchone()
     conn.close()
     return cliente
-
 def crear_cliente(nombre, telefono):
     conn = conectar_db()
     cursor = conn.cursor()
@@ -119,8 +115,6 @@ def ver_carrito(id_carrito):
     items = cursor.fetchall()
     conn.close()
     return items
-
-# Ruta webhook de WhatsApp
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp():
     telefono = request.form['From'].split(":")[-1]
@@ -129,7 +123,6 @@ def whatsapp():
 
     cliente = obtener_cliente_por_telefono(telefono)
     
-    # Si el cliente no está registrado, creamos el cliente o le damos bienvenida
     if not cliente:
         if mensaje.lower() in ["hola", "buenas", "iniciar"]:
             respuesta.message(
@@ -144,7 +137,6 @@ def whatsapp():
                 )
             return str(respuesta)
         else:
-            # Si no es un saludo, lo registramos
             id_cliente = crear_cliente(mensaje, telefono)
             id_sesion = crear_sesion(id_cliente, estado="menu")
             id_carrito = crear_carrito(id_cliente)
